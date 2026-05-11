@@ -141,7 +141,7 @@ server <- function(input, output, session) {
   output$plotSlopeOpt <- renderPlot({
     plot_individual_evolution(
       slope_opt,
-      title = "Évolution individuelle de la % pente optimale (Groupe Optimisé)",
+      title = "Évolution individuelle du % de pente optimale (Groupe Optimisé)",
       y_label = "Pente optimale (%)"
     )
   })
@@ -149,7 +149,7 @@ server <- function(input, output, session) {
   output$plotSlopeCtrl <- renderPlot({
     plot_individual_evolution(
       slope_ctrl,
-      title = "Évolution individuelle de la % pente optimale (Groupe Contrôle)",
+      title = "Évolution individuelle du % de pente optimale (Groupe Contrôle)",
       y_label = "Pente optimale (%)"
     )
   })
