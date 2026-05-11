@@ -7,6 +7,32 @@ library(stringr)
 
 group_colors <- c("Contrôle" = "#1F77B4", "Expérimentale" = "#D62728")
 
+format_pvalue <- function(p) {
+  if (is.na(p)) {
+    return("p = NA")
+  }
+  if (p < 0.001) {
+    return("p < 0.001")
+  }
+  paste0("p = ", formatC(p, format = "f", digits = 3))
+}
+
+signif_symbol <- function(p) {
+  if (is.na(p)) {
+    return("NA")
+  }
+  if (p < 0.001) {
+    return("***")
+  }
+  if (p < 0.01) {
+    return("**")
+  }
+  if (p < 0.05) {
+    return("*")
+  }
+  "ns"
+}
+
 find_excel_path <- function() {
   candidates <- c(
     "Donnée_mémoire_2026_Vérifié.xlsx",
@@ -75,6 +101,20 @@ make_long <- function(df) {
 
 plot_individual_evolution <- function(df, title, y_label) {
   long_df <- make_long(df)
+  pvals <- df %>%
+    group_by(group) %>%
+    summarise(
+      p_value = if (sum(complete.cases(pre, post)) >= 2) {
+        t.test(post, pre, paired = TRUE)$p.value
+      } else {
+        NA_real_
+      },
+      .groups = "drop"
+    )
+  p_text <- paste(
+    paste0(pvals$group, ": ", format_pvalue(pvals$p_value)),
+    collapse = " | "
+  )
 
   ggplot(
     long_df,
@@ -88,13 +128,22 @@ plot_individual_evolution <- function(df, title, y_label) {
       title = title,
       x = "Moment de mesure",
       y = y_label,
-      color = "Groupe"
+      color = "Groupe",
+      caption = paste0(
+        "Significativité : ns p≥0.05, * p<0.05, ** p<0.01, *** p<0.001. ",
+        p_text
+      )
     ) +
-    theme_minimal(base_size = 13) +
+    theme_minimal(base_size = 16) +
     theme(
       plot.title = element_text(face = "bold", hjust = 0.5),
       panel.grid = element_blank(),
-      legend.position = "right"
+      legend.position = "right",
+      axis.title = element_text(size = 16, face = "bold"),
+      axis.text = element_text(size = 14, face = "bold"),
+      legend.title = element_text(size = 14, face = "bold"),
+      legend.text = element_text(size = 13),
+      plot.caption = element_text(size = 9, hjust = 0, margin = margin(t = 12))
     )
 }
 
@@ -117,13 +166,45 @@ summary_time_group <- make_long(time_all) %>%
     .groups = "drop"
   )
 
+time_pvals <- time_all %>%
+  group_by(group) %>%
+  summarise(
+    p_value = if (sum(complete.cases(pre, post)) >= 2) {
+      t.test(post, pre, paired = TRUE)$p.value
+    } else {
+      NA_real_
+    },
+    .groups = "drop"
+  )
+
+slope_delta_p <- if (length(unique(delta_slope$group)) == 2 && nrow(delta_slope) >= 4) {
+  t.test(delta ~ group, data = delta_slope)$p.value
+} else {
+  NA_real_
+}
+
+delta_annotation <- data.frame(
+  x = 1.5,
+  y = max(summary_delta_slope$mean_delta + summary_delta_slope$sd_delta, na.rm = TRUE) * 1.12,
+  label = paste0(signif_symbol(slope_delta_p), " (", format_pvalue(slope_delta_p), ")")
+)
+
+time_sig_annotations <- summary_time_group %>%
+  group_by(group) %>%
+  summarise(y = max(mean_value + sd_value, na.rm = TRUE) * 1.08, .groups = "drop") %>%
+  left_join(time_pvals, by = "group") %>%
+  mutate(
+    label = paste0(signif_symbol(p_value), " (", format_pvalue(p_value), ")"),
+    y_text = y * 1.015
+  )
+
 ui <- fluidPage(
   titlePanel("Analyse Stat 1 - Évolution individuelle et deltas"),
   tabsetPanel(
-    tabPanel("Pente % individuelle", plotOutput("plotSlopeCombined", height = "500px")),
-    tabPanel("Temps 5 m individuel", plotOutput("plotTimeCombined", height = "500px")),
-    tabPanel("Δ % Pente (groupes)", plotOutput("plotDeltaSlope", height = "500px")),
-    tabPanel("Temps 5 m moyen pré/post", plotOutput("plotTimeMean", height = "500px"))
+    tabPanel("Pente % individuelle", plotOutput("plotSlopeCombined", height = "620px")),
+    tabPanel("Temps 5 m individuel", plotOutput("plotTimeCombined", height = "620px")),
+    tabPanel("Δ % Pente (groupes)", plotOutput("plotDeltaSlope", height = "620px")),
+    tabPanel("Temps 5 m moyen pré/post", plotOutput("plotTimeMean", height = "620px"))
   )
 )
 
@@ -167,14 +248,33 @@ server <- function(input, output, session) {
         y = "Δ % pente optimale",
         fill = "Groupe"
       ) +
+      geom_text(
+        data = delta_annotation,
+        aes(x = x, y = y, label = label),
+        inherit.aes = FALSE,
+        size = 5,
+        fontface = "bold"
+      ) +
       scale_fill_manual(values = group_colors) +
       scale_color_manual(values = group_colors, guide = "none") +
       scale_y_continuous(breaks = function(x) pretty(x, n = 10)) +
-      theme_minimal(base_size = 13) +
+      labs(
+        caption = paste0(
+          "Significativité : ns p≥0.05, * p<0.05, ** p<0.01, *** p<0.001. ",
+          "Comparaison inter-groupes des deltas : ",
+          format_pvalue(slope_delta_p)
+        )
+      ) +
+      theme_minimal(base_size = 16) +
       theme(
         plot.title = element_text(face = "bold", hjust = 0.5),
         panel.grid = element_blank(),
-        legend.position = "right"
+        legend.position = "right",
+        axis.title = element_text(size = 16, face = "bold"),
+        axis.text = element_text(size = 14, face = "bold"),
+        legend.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 13),
+        plot.caption = element_text(size = 9, hjust = 0, margin = margin(t = 12))
       )
   })
 
@@ -189,6 +289,19 @@ server <- function(input, output, session) {
         width = 0.08,
         linewidth = 0.9
       ) +
+      geom_segment(
+        data = time_sig_annotations,
+        aes(x = 1, xend = 2, y = y, yend = y),
+        inherit.aes = FALSE,
+        linewidth = 0.8
+      ) +
+      geom_text(
+        data = time_sig_annotations,
+        aes(x = 1.5, y = y_text, label = label),
+        inherit.aes = FALSE,
+        size = 4.6,
+        fontface = "bold"
+      ) +
       facet_wrap(~group, nrow = 1) +
       scale_fill_manual(values = c("Pré" = "#8DA0CB", "Post" = "#FC8D62")) +
       scale_y_continuous(breaks = function(x) pretty(x, n = 10)) +
@@ -196,14 +309,24 @@ server <- function(input, output, session) {
         title = "Évolution des groupes sur le temps moyen au 5 m",
         x = "Moment de mesure",
         y = "Temps moyen au 5 m (s)",
-        fill = "Phase"
+        fill = "Phase",
+        caption = paste0(
+          "Significativité : ns p≥0.05, * p<0.05, ** p<0.01, *** p<0.001. ",
+          "Contrôle: ", format_pvalue(time_pvals$p_value[time_pvals$group == "Contrôle"]),
+          " | Expérimentale: ", format_pvalue(time_pvals$p_value[time_pvals$group == "Expérimentale"])
+        )
       ) +
-      theme_minimal(base_size = 13) +
+      theme_minimal(base_size = 16) +
       theme(
         plot.title = element_text(face = "bold", hjust = 0.5),
         panel.grid = element_blank(),
         legend.position = "right",
-        strip.text = element_text(face = "bold")
+        strip.text = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 16, face = "bold"),
+        axis.text = element_text(size = 14, face = "bold"),
+        legend.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 13),
+        plot.caption = element_text(size = 9, hjust = 0, margin = margin(t = 12))
       )
   })
 }
