@@ -73,12 +73,6 @@ make_long <- function(df) {
     )
 }
 
-mean_sd <- function(x) {
-  mean_val <- mean(x, na.rm = TRUE)
-  sd_val <- sd(x, na.rm = TRUE)
-  data.frame(y = mean_val, ymin = mean_val - sd_val, ymax = mean_val + sd_val)
-}
-
 plot_individual_evolution <- function(df, title, y_label) {
   long_df <- make_long(df)
 
