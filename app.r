@@ -5,13 +5,32 @@ library(tidyr)
 library(ggplot2)
 library(stringr)
 
-excel_path <- "Donnée_mémoire_2026_Vérifié.xlsx"
+find_excel_path <- function() {
+  candidates <- c(
+    "Donnée_mémoire_2026_Vérifié.xlsx",
+    "Donnee_memoire_2026_Verifie.xlsx"
+  )
+  existing <- candidates[file.exists(candidates)]
+  if (length(existing) > 0) {
+    return(existing[[1]])
+  }
+
+  xlsx_files <- list.files(pattern = "\\.xlsx$", full.names = TRUE)
+  if (length(xlsx_files) == 0) {
+    stop("Aucun fichier .xlsx trouvé dans le dossier de l'application.")
+  }
+  xlsx_files[[1]]
+}
+
+excel_path <- find_excel_path()
 
 clean_athlete <- function(x) {
   str_to_title(str_squish(as.character(x)))
 }
 
 read_block <- function(range, col_names) {
+  # range: plage Excel contenant athlete, pre, post
+  # col_names: noms des 3 colonnes à appliquer
   read_excel(
     path = excel_path,
     sheet = "Stat 1",
@@ -41,24 +60,24 @@ make_long <- function(df) {
   df %>%
     pivot_longer(
       cols = c(pre, post),
-      names_to = "time",
+      names_to = "phase",
       values_to = "value"
     ) %>%
     mutate(
-      time = factor(time, levels = c("pre", "post"), labels = c("Pré", "Post"))
+      phase = factor(phase, levels = c("pre", "post"), labels = c("Pré", "Post"))
     )
 }
 
 mean_sd <- function(x) {
-  m <- mean(x, na.rm = TRUE)
-  s <- sd(x, na.rm = TRUE)
-  data.frame(y = m, ymin = m - s, ymax = m + s)
+  mean_val <- mean(x, na.rm = TRUE)
+  sd_val <- sd(x, na.rm = TRUE)
+  data.frame(y = mean_val, ymin = mean_val - sd_val, ymax = mean_val + sd_val)
 }
 
 plot_individual_evolution <- function(df, title, y_label) {
   long_df <- make_long(df)
 
-  ggplot(long_df, aes(x = time, y = value, group = athlete, color = athlete)) +
+  ggplot(long_df, aes(x = phase, y = value, group = athlete, color = athlete)) +
     geom_line(linewidth = 0.9, alpha = 0.8) +
     geom_point(size = 2.2) +
     stat_summary(
