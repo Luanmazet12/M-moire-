@@ -190,7 +190,7 @@ server <- function(input, output, session) {
       facet_wrap(~group, nrow = 1) +
       scale_fill_manual(values = c("Pré" = "#8DA0CB", "Post" = "#FC8D62")) +
       labs(
-        title = "Evolution des groupes sur le temps moyen au 5 m",
+        title = "Évolution des groupes sur le temps moyen au 5 m",
         x = "Moment de mesure (Pré = avant, Post = après)",
         y = "Temps moyen au 5 m (s)",
         fill = "Phase"
