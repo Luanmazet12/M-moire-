@@ -88,25 +88,6 @@ plot_individual_evolution <- function(df, title, y_label) {
   ) +
     geom_line(linewidth = 0.9, alpha = 0.65) +
     geom_point(size = 2.2, alpha = 0.8) +
-    stat_summary(
-      aes(group = group),
-      fun = mean,
-      geom = "line",
-      linewidth = 1.3
-    ) +
-    stat_summary(
-      aes(group = group),
-      fun = mean,
-      geom = "point",
-      size = 3
-    ) +
-    stat_summary(
-      aes(group = group),
-      fun.data = mean_sd,
-      geom = "errorbar",
-      width = 0.08,
-      linewidth = 0.9
-    ) +
     scale_color_manual(values = group_colors) +
     labs(
       title = title,
@@ -116,7 +97,8 @@ plot_individual_evolution <- function(df, title, y_label) {
     ) +
     theme_minimal(base_size = 13) +
     theme(
-      plot.title = element_text(face = "bold"),
+      plot.title = element_text(face = "bold", hjust = 0.5),
+      panel.grid = element_blank(),
       legend.position = "right"
     )
 }
@@ -154,7 +136,7 @@ server <- function(input, output, session) {
   output$plotSlopeCombined <- renderPlot({
     plot_individual_evolution(
       slope_all,
-      title = "Évolution individuelle du % de pente optimale (Contrôle bleu, Optimisé rouge)",
+      title = "Évolution individuelle du % de pente optimale",
       y_label = "Pente optimale (%)"
     )
   })
@@ -162,7 +144,7 @@ server <- function(input, output, session) {
   output$plotTimeCombined <- renderPlot({
     plot_individual_evolution(
       time_all,
-      title = "Évolution individuelle du temps 5 m (Contrôle bleu, Optimisé rouge)",
+      title = "Évolution individuelle du temps 5 m",
       y_label = "Temps 5 m (s)"
     )
   })
@@ -194,7 +176,7 @@ server <- function(input, output, session) {
       scale_color_manual(values = group_colors, guide = "none") +
       theme_minimal(base_size = 13) +
       theme(
-        plot.title = element_text(face = "bold"),
+        plot.title = element_text(face = "bold", hjust = 0.5),
         legend.position = "right"
       )
   })
@@ -202,26 +184,27 @@ server <- function(input, output, session) {
   output$plotTimeMean <- renderPlot({
     ggplot(
       summary_time_group,
-      aes(x = phase, y = mean_value, color = group, group = group)
+      aes(x = phase, y = mean_value, fill = phase)
     ) +
-      geom_line(linewidth = 1.3) +
-      geom_point(size = 3) +
+      geom_col(width = 0.62, alpha = 0.9) +
       geom_errorbar(
         aes(ymin = mean_value - sd_value, ymax = mean_value + sd_value),
         width = 0.08,
         linewidth = 0.9
       ) +
-      scale_color_manual(values = group_colors) +
+      facet_wrap(~group, nrow = 1) +
+      scale_fill_manual(values = c("Pré" = "#8DA0CB", "Post" = "#FC8D62")) +
       labs(
-        title = "Évolution moyenne du temps 5 m en Pré/Post par groupe",
+        title = "Moyenne du temps 5 m en Pré/Post par groupe",
         x = "Temps de mesure",
         y = "Temps 5 m (s)",
-        color = "Groupe"
+        fill = "Phase"
       ) +
       theme_minimal(base_size = 13) +
       theme(
-        plot.title = element_text(face = "bold"),
-        legend.position = "right"
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        legend.position = "right",
+        strip.text = element_text(face = "bold")
       )
   })
 }
