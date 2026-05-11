@@ -5,7 +5,7 @@ library(tidyr)
 library(ggplot2)
 library(stringr)
 
-group_colors <- c("Contrôle" = "#1F77B4", "Optimisé" = "#D62728")
+group_colors <- c("Contrôle" = "#1F77B4", "Expérimentale" = "#D62728")
 
 find_excel_path <- function() {
   candidates <- c(
@@ -47,13 +47,13 @@ read_block <- function(range, col_names) {
 }
 
 time_opt <- read_block("H16:J19", c("athlete", "pre", "post")) %>%
-  mutate(group = "Optimisé")
+  mutate(group = "Expérimentale")
 
 time_ctrl <- read_block("K16:M19", c("athlete", "pre", "post")) %>%
   mutate(group = "Contrôle")
 
 slope_opt <- read_block("O16:Q19", c("athlete", "pre", "post")) %>%
-  mutate(group = "Optimisé")
+  mutate(group = "Expérimentale")
 
 slope_ctrl <- read_block("R16:T19", c("athlete", "pre", "post")) %>%
   mutate(group = "Contrôle")
@@ -85,7 +85,7 @@ plot_individual_evolution <- function(df, title, y_label) {
     scale_color_manual(values = group_colors) +
     labs(
       title = title,
-      x = "Temps de mesure",
+      x = "Moment de mesure (Pré = avant, Post = après)",
       y = y_label,
       color = "Groupe"
     ) +
@@ -131,7 +131,7 @@ server <- function(input, output, session) {
     plot_individual_evolution(
       slope_all,
       title = "Évolution individuelle du % de pente optimale",
-      y_label = "Pente optimale (%)"
+      y_label = "Pente optimale individuelle (%)"
     )
   })
 
@@ -139,7 +139,7 @@ server <- function(input, output, session) {
     plot_individual_evolution(
       time_all,
       title = "Évolution individuelle du temps 5 m",
-      y_label = "Temps 5 m (s)"
+      y_label = "Temps individuel au 5 m (s)"
     )
   })
 
@@ -162,7 +162,7 @@ server <- function(input, output, session) {
       ) +
       labs(
         title = "Delta de % pente optimale par groupe",
-        x = "Groupe",
+        x = "Groupe d'étude",
         y = "Δ % pente optimale (post - pré, points de %)",
         fill = "Groupe"
       ) +
@@ -171,6 +171,7 @@ server <- function(input, output, session) {
       theme_minimal(base_size = 13) +
       theme(
         plot.title = element_text(face = "bold", hjust = 0.5),
+        panel.grid = element_blank(),
         legend.position = "right"
       )
   })
@@ -189,14 +190,15 @@ server <- function(input, output, session) {
       facet_wrap(~group, nrow = 1) +
       scale_fill_manual(values = c("Pré" = "#8DA0CB", "Post" = "#FC8D62")) +
       labs(
-        title = "Moyenne du temps 5 m en Pré/Post par groupe",
-        x = "Temps de mesure",
-        y = "Temps 5 m (s)",
+        title = "Evolution des groupes sur le temps moyenne au 5 m",
+        x = "Moment de mesure (Pré = avant, Post = après)",
+        y = "Temps moyen au 5 m (s)",
         fill = "Phase"
       ) +
       theme_minimal(base_size = 13) +
       theme(
         plot.title = element_text(face = "bold", hjust = 0.5),
+        panel.grid = element_blank(),
         legend.position = "right",
         strip.text = element_text(face = "bold")
       )
