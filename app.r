@@ -6,6 +6,10 @@ library(ggplot2)
 library(stringr)
 
 group_colors <- c("Contrôle" = "#1F77B4", "Expérimentale" = "#D62728")
+ANNOTATION_X_CENTER <- 1.5
+DELTA_ANNOTATION_Y_MULTIPLIER <- 1.12
+TIME_SEGMENT_Y_MULTIPLIER <- 1.08
+TIME_TEXT_Y_MULTIPLIER <- 1.015
 
 format_pvalue <- function(p) {
   if (is.na(p)) {
@@ -31,6 +35,14 @@ signif_symbol <- function(p) {
     return("*")
   }
   "ns"
+}
+
+get_group_pvalue <- function(pval_df, group_name) {
+  matched <- pval_df %>% filter(group == group_name) %>% pull(p_value)
+  if (length(matched) == 0) {
+    return(NA_real_)
+  }
+  matched[[1]]
 }
 
 find_excel_path <- function() {
@@ -184,18 +196,19 @@ slope_delta_p <- if (length(unique(delta_slope$group)) == 2 && nrow(delta_slope)
 }
 
 delta_annotation <- data.frame(
-  x = 1.5,
-  y = max(summary_delta_slope$mean_delta + summary_delta_slope$sd_delta, na.rm = TRUE) * 1.12,
+  x = ANNOTATION_X_CENTER,
+  y = max(summary_delta_slope$mean_delta + summary_delta_slope$sd_delta, na.rm = TRUE) *
+    DELTA_ANNOTATION_Y_MULTIPLIER,
   label = paste0(signif_symbol(slope_delta_p), " (", format_pvalue(slope_delta_p), ")")
 )
 
 time_sig_annotations <- summary_time_group %>%
   group_by(group) %>%
-  summarise(y = max(mean_value + sd_value, na.rm = TRUE) * 1.08, .groups = "drop") %>%
+  summarise(y = max(mean_value + sd_value, na.rm = TRUE) * TIME_SEGMENT_Y_MULTIPLIER, .groups = "drop") %>%
   left_join(time_pvals, by = "group") %>%
   mutate(
     label = paste0(signif_symbol(p_value), " (", format_pvalue(p_value), ")"),
-    y_text = y * 1.015
+    y_text = y * TIME_TEXT_Y_MULTIPLIER
   )
 
 ui <- fluidPage(
@@ -297,7 +310,7 @@ server <- function(input, output, session) {
       ) +
       geom_text(
         data = time_sig_annotations,
-        aes(x = 1.5, y = y_text, label = label),
+        aes(x = ANNOTATION_X_CENTER, y = y_text, label = label),
         inherit.aes = FALSE,
         size = 4.6,
         fontface = "bold"
@@ -312,8 +325,8 @@ server <- function(input, output, session) {
         fill = "Phase",
         caption = paste0(
           "Significativité : ns p≥0.05, * p<0.05, ** p<0.01, *** p<0.001. ",
-          "Contrôle: ", format_pvalue(time_pvals$p_value[time_pvals$group == "Contrôle"]),
-          " | Expérimentale: ", format_pvalue(time_pvals$p_value[time_pvals$group == "Expérimentale"])
+          "Contrôle: ", format_pvalue(get_group_pvalue(time_pvals, "Contrôle")),
+          " | Expérimentale: ", format_pvalue(get_group_pvalue(time_pvals, "Expérimentale"))
         )
       ) +
       theme_minimal(base_size = 16) +
