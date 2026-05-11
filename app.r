@@ -83,9 +83,10 @@ plot_individual_evolution <- function(df, title, y_label) {
     geom_line(linewidth = 0.9, alpha = 0.65) +
     geom_point(size = 2.2, alpha = 0.8) +
     scale_color_manual(values = group_colors) +
+    scale_y_continuous(breaks = function(x) pretty(x, n = 10)) +
     labs(
       title = title,
-      x = "Moment de mesure (Pré = avant, Post = après)",
+      x = "Moment de mesure",
       y = y_label,
       color = "Groupe"
     ) +
@@ -163,11 +164,12 @@ server <- function(input, output, session) {
       labs(
         title = "Delta de % pente optimale par groupe",
         x = "Groupe d'étude",
-        y = "Δ % pente optimale (post - pré, points de %)",
+        y = "Δ % pente optimale",
         fill = "Groupe"
       ) +
       scale_fill_manual(values = group_colors) +
       scale_color_manual(values = group_colors, guide = "none") +
+      scale_y_continuous(breaks = function(x) pretty(x, n = 10)) +
       theme_minimal(base_size = 13) +
       theme(
         plot.title = element_text(face = "bold", hjust = 0.5),
@@ -189,9 +191,10 @@ server <- function(input, output, session) {
       ) +
       facet_wrap(~group, nrow = 1) +
       scale_fill_manual(values = c("Pré" = "#8DA0CB", "Post" = "#FC8D62")) +
+      scale_y_continuous(breaks = function(x) pretty(x, n = 10)) +
       labs(
         title = "Évolution des groupes sur le temps moyen au 5 m",
-        x = "Moment de mesure (Pré = avant, Post = après)",
+        x = "Moment de mesure",
         y = "Temps moyen au 5 m (s)",
         fill = "Phase"
       ) +
