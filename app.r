@@ -142,7 +142,7 @@ server <- function(input, output, session) {
     plot_individual_evolution(
       slope_opt,
       title = "Évolution individuelle de la % pente optimale (Groupe Optimisé)",
-      y_label = "% pente optimale (%)"
+      y_label = "Pente optimale (%)"
     )
   })
 
@@ -150,7 +150,7 @@ server <- function(input, output, session) {
     plot_individual_evolution(
       slope_ctrl,
       title = "Évolution individuelle de la % pente optimale (Groupe Contrôle)",
-      y_label = "% pente optimale (%)"
+      y_label = "Pente optimale (%)"
     )
   })
 
