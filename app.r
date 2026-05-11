@@ -10,6 +10,10 @@ ANNOTATION_X_CENTER <- 1.5
 DELTA_ANNOTATION_Y_MULTIPLIER <- 1.12
 TIME_SEGMENT_Y_MULTIPLIER <- 1.08
 TIME_TEXT_Y_MULTIPLIER <- 1.015
+MIN_WITHIN_GROUP_ATHLETES <- 2
+MIN_WITHIN_GROUP_PHASES <- 2
+EXPECTED_GROUP_COUNT <- 2
+MIN_DELTA_OBSERVATIONS <- 4
 
 format_pvalue <- function(p) {
   ifelse(
@@ -113,16 +117,50 @@ make_long <- function(df) {
     )
 }
 
+compute_within_group_anova_p <- function(df_group) {
+  long_df <- make_long(df_group) %>%
+    filter(!is.na(value), !is.na(athlete))
+
+  if (
+    n_distinct(long_df$athlete) < MIN_WITHIN_GROUP_ATHLETES ||
+      n_distinct(long_df$phase) < MIN_WITHIN_GROUP_PHASES
+  ) {
+    return(NA_real_)
+  }
+
+  fit <- tryCatch(
+    aov(value ~ phase + Error(athlete / phase), data = long_df),
+    error = function(e) NULL
+  )
+  if (is.null(fit)) {
+    return(NA_real_)
+  }
+
+  fit_summary <- summary(fit)
+  if (!("Error: athlete:phase" %in% names(fit_summary))) {
+    return(NA_real_)
+  }
+
+  phase_table <- fit_summary[["Error: athlete:phase"]][[1]]
+  if (
+    is.null(phase_table) ||
+    !("Pr(>F)" %in% colnames(phase_table)) ||
+    !("phase" %in% rownames(phase_table))
+  ) {
+    return(NA_real_)
+  }
+
+  as.numeric(phase_table["phase", "Pr(>F)"])
+}
+
 plot_individual_evolution <- function(df, title, y_label) {
   long_df <- make_long(df)
   pvals <- df %>%
     group_by(group) %>%
     summarise(
-      p_value = if (sum(complete.cases(pre, post)) >= 2) {
-        t.test(post, pre, paired = TRUE)$p.value
-      } else {
-        NA_real_
-      },
+      p_value = compute_within_group_anova_p(
+        data.frame(athlete = athlete, pre = pre, post = post)
+      ),
       .groups = "drop"
     )
   p_text <- paste(
@@ -183,16 +221,20 @@ summary_time_group <- make_long(time_all) %>%
 time_pvals <- time_all %>%
   group_by(group) %>%
   summarise(
-    p_value = if (sum(complete.cases(pre, post)) >= 2) {
-      t.test(post, pre, paired = TRUE)$p.value
-    } else {
-      NA_real_
-    },
+    p_value = compute_within_group_anova_p(
+      data.frame(athlete = athlete, pre = pre, post = post)
+    ),
     .groups = "drop"
   )
 
-slope_delta_p <- if (length(unique(delta_slope$group)) == 2 && nrow(delta_slope) >= 4) {
-  t.test(delta ~ group, data = delta_slope)$p.value
+slope_delta_p <- if (
+  length(unique(delta_slope$group)) == EXPECTED_GROUP_COUNT &&
+    nrow(delta_slope) >= MIN_DELTA_OBSERVATIONS
+) {
+  tryCatch(
+    as.numeric(summary(aov(delta ~ group, data = delta_slope))[[1]][1, "Pr(>F)"]),
+    error = function(e) NA_real_
+  )
 } else {
   NA_real_
 }
