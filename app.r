@@ -5,6 +5,8 @@ library(tidyr)
 library(ggplot2)
 library(stringr)
 
+group_colors <- c("Contrôle" = "#1F77B4", "Optimisé" = "#D62728")
+
 find_excel_path <- function() {
   candidates <- c(
     "Donnée_mémoire_2026_Vérifié.xlsx",
@@ -56,6 +58,9 @@ slope_opt <- read_block("O16:Q19", c("athlete", "pre", "post")) %>%
 slope_ctrl <- read_block("R16:T19", c("athlete", "pre", "post")) %>%
   mutate(group = "Contrôle")
 
+slope_all <- bind_rows(slope_opt, slope_ctrl)
+time_all <- bind_rows(time_opt, time_ctrl)
+
 make_long <- function(df) {
   df %>%
     pivot_longer(
@@ -77,36 +82,37 @@ mean_sd <- function(x) {
 plot_individual_evolution <- function(df, title, y_label) {
   long_df <- make_long(df)
 
-  ggplot(long_df, aes(x = phase, y = value, group = athlete, color = athlete)) +
-    geom_line(linewidth = 0.9, alpha = 0.8) +
-    geom_point(size = 2.2) +
+  ggplot(
+    long_df,
+    aes(x = phase, y = value, group = interaction(group, athlete), color = group)
+  ) +
+    geom_line(linewidth = 0.9, alpha = 0.65) +
+    geom_point(size = 2.2, alpha = 0.8) +
     stat_summary(
-      aes(group = 1),
+      aes(group = group),
       fun = mean,
       geom = "line",
-      color = "black",
-      linewidth = 1.2
+      linewidth = 1.3
     ) +
     stat_summary(
-      aes(group = 1),
+      aes(group = group),
       fun = mean,
       geom = "point",
-      color = "black",
       size = 3
     ) +
     stat_summary(
-      aes(group = 1),
+      aes(group = group),
       fun.data = mean_sd,
       geom = "errorbar",
       width = 0.08,
-      color = "black",
       linewidth = 0.9
     ) +
+    scale_color_manual(values = group_colors) +
     labs(
       title = title,
       x = "Temps de mesure",
       y = y_label,
-      color = "Athlète"
+      color = "Groupe"
     ) +
     theme_minimal(base_size = 13) +
     theme(
@@ -115,7 +121,7 @@ plot_individual_evolution <- function(df, title, y_label) {
     )
 }
 
-delta_slope <- bind_rows(slope_opt, slope_ctrl) %>%
+delta_slope <- slope_all %>%
   mutate(delta = post - pre)
 
 summary_delta_slope <- delta_slope %>%
@@ -126,46 +132,37 @@ summary_delta_slope <- delta_slope %>%
     .groups = "drop"
   )
 
+summary_time_group <- make_long(time_all) %>%
+  group_by(group, phase) %>%
+  summarise(
+    mean_value = mean(value, na.rm = TRUE),
+    sd_value = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  )
+
 ui <- fluidPage(
   titlePanel("Analyse Stat 1 - Évolution individuelle et deltas"),
   tabsetPanel(
-    tabPanel("Pente % - Optimisé", plotOutput("plotSlopeOpt", height = "500px")),
-    tabPanel("Pente % - Contrôle", plotOutput("plotSlopeCtrl", height = "500px")),
-    tabPanel("Temps 5 m - Optimisé", plotOutput("plotTimeOpt", height = "500px")),
-    tabPanel("Temps 5 m - Contrôle", plotOutput("plotTimeCtrl", height = "500px")),
-    tabPanel("Δ % Pente (groupes)", plotOutput("plotDeltaSlope", height = "500px"))
+    tabPanel("Pente % individuelle", plotOutput("plotSlopeCombined", height = "500px")),
+    tabPanel("Temps 5 m individuel", plotOutput("plotTimeCombined", height = "500px")),
+    tabPanel("Δ % Pente (groupes)", plotOutput("plotDeltaSlope", height = "500px")),
+    tabPanel("Temps 5 m moyen pré/post", plotOutput("plotTimeMean", height = "500px"))
   )
 )
 
 server <- function(input, output, session) {
-  output$plotSlopeOpt <- renderPlot({
+  output$plotSlopeCombined <- renderPlot({
     plot_individual_evolution(
-      slope_opt,
-      title = "Évolution individuelle du % de pente optimale (Groupe Optimisé)",
+      slope_all,
+      title = "Évolution individuelle du % de pente optimale (Contrôle bleu, Optimisé rouge)",
       y_label = "Pente optimale (%)"
     )
   })
 
-  output$plotSlopeCtrl <- renderPlot({
+  output$plotTimeCombined <- renderPlot({
     plot_individual_evolution(
-      slope_ctrl,
-      title = "Évolution individuelle du % de pente optimale (Groupe Contrôle)",
-      y_label = "Pente optimale (%)"
-    )
-  })
-
-  output$plotTimeOpt <- renderPlot({
-    plot_individual_evolution(
-      time_opt,
-      title = "Évolution individuelle du temps 5 m (Groupe Optimisé)",
-      y_label = "Temps 5 m (s)"
-    )
-  })
-
-  output$plotTimeCtrl <- renderPlot({
-    plot_individual_evolution(
-      time_ctrl,
-      title = "Évolution individuelle du temps 5 m (Groupe Contrôle)",
+      time_all,
+      title = "Évolution individuelle du temps 5 m (Contrôle bleu, Optimisé rouge)",
       y_label = "Temps 5 m (s)"
     )
   })
@@ -180,7 +177,7 @@ server <- function(input, output, session) {
       ) +
       geom_jitter(
         data = delta_slope,
-        aes(x = group, y = delta),
+        aes(x = group, y = delta, color = group),
         width = 0.08,
         height = 0,
         size = 2.4,
@@ -193,7 +190,34 @@ server <- function(input, output, session) {
         y = "Δ % pente optimale (post - pré, points de %)",
         fill = "Groupe"
       ) +
-      scale_fill_manual(values = c("Optimisé" = "#1B9E77", "Contrôle" = "#D95F02")) +
+      scale_fill_manual(values = group_colors) +
+      scale_color_manual(values = group_colors, guide = "none") +
+      theme_minimal(base_size = 13) +
+      theme(
+        plot.title = element_text(face = "bold"),
+        legend.position = "right"
+      )
+  })
+
+  output$plotTimeMean <- renderPlot({
+    ggplot(
+      summary_time_group,
+      aes(x = phase, y = mean_value, color = group, group = group)
+    ) +
+      geom_line(linewidth = 1.3) +
+      geom_point(size = 3) +
+      geom_errorbar(
+        aes(ymin = mean_value - sd_value, ymax = mean_value + sd_value),
+        width = 0.08,
+        linewidth = 0.9
+      ) +
+      scale_color_manual(values = group_colors) +
+      labs(
+        title = "Évolution moyenne du temps 5 m en Pré/Post par groupe",
+        x = "Temps de mesure",
+        y = "Temps 5 m (s)",
+        color = "Groupe"
+      ) +
       theme_minimal(base_size = 13) +
       theme(
         plot.title = element_text(face = "bold"),
