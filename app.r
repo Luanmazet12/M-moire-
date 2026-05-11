@@ -12,29 +12,31 @@ TIME_SEGMENT_Y_MULTIPLIER <- 1.08
 TIME_TEXT_Y_MULTIPLIER <- 1.015
 
 format_pvalue <- function(p) {
-  if (is.na(p)) {
-    return("p = NA")
-  }
-  if (p < 0.001) {
-    return("p < 0.001")
-  }
-  paste0("p = ", formatC(p, format = "f", digits = 3))
+  ifelse(
+    is.na(p),
+    "p = NA",
+    ifelse(
+      p < 0.001,
+      "p < 0.001",
+      paste0("p = ", formatC(p, format = "f", digits = 3))
+    )
+  )
 }
 
 signif_symbol <- function(p) {
-  if (is.na(p)) {
-    return("NA")
-  }
-  if (p < 0.001) {
-    return("***")
-  }
-  if (p < 0.01) {
-    return("**")
-  }
-  if (p < 0.05) {
-    return("*")
-  }
-  "ns"
+  ifelse(
+    is.na(p),
+    "NA",
+    ifelse(
+      p < 0.001,
+      "***",
+      ifelse(
+        p < 0.01,
+        "**",
+        ifelse(p < 0.05, "*", "ns")
+      )
+    )
+  )
 }
 
 get_group_pvalue <- function(pval_df, group_name) {
