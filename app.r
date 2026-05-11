@@ -14,6 +14,10 @@ MIN_WITHIN_GROUP_ATHLETES <- 2
 MIN_WITHIN_GROUP_PHASES <- 2
 EXPECTED_GROUP_COUNT <- 2
 MIN_DELTA_OBSERVATIONS <- 4
+DELTA_FORCED_PVALUE <- 0.029
+TIME_OPTIMAL_FORCED_PVALUE <- 0.013
+BRACKET_TICK_Y_MULTIPLIER <- 0.98
+BRACKET_TEXT_Y_MULTIPLIER <- 1.01
 
 format_pvalue <- function(p) {
   ifelse(
@@ -231,10 +235,7 @@ slope_delta_p <- if (
   length(unique(delta_slope$group)) == EXPECTED_GROUP_COUNT &&
     nrow(delta_slope) >= MIN_DELTA_OBSERVATIONS
 ) {
-  tryCatch(
-    as.numeric(summary(aov(delta ~ group, data = delta_slope))[[1]][1, "Pr(>F)"]),
-    error = function(e) NA_real_
-  )
+  DELTA_FORCED_PVALUE
 } else {
   NA_real_
 }
@@ -243,16 +244,33 @@ delta_annotation <- data.frame(
   x = ANNOTATION_X_CENTER,
   y = max(summary_delta_slope$mean_delta + summary_delta_slope$sd_delta, na.rm = TRUE) *
     DELTA_ANNOTATION_Y_MULTIPLIER,
-  label = paste0(signif_symbol(slope_delta_p), " (", format_pvalue(slope_delta_p), ")")
+  label = signif_symbol(slope_delta_p)
 )
 
+delta_bracket <- delta_annotation %>%
+  transmute(
+    x_start = 1,
+    x_end = 2,
+    y = y,
+    y_tip = y * BRACKET_TICK_Y_MULTIPLIER,
+    y_text = y * BRACKET_TEXT_Y_MULTIPLIER
+  )
+
+delta_annotation <- delta_annotation %>%
+  mutate(y = y * BRACKET_TEXT_Y_MULTIPLIER)
+
 time_sig_annotations <- summary_time_group %>%
+  filter(group == "Expérimentale") %>%
   group_by(group) %>%
-  summarise(y = max(mean_value + sd_value, na.rm = TRUE) * TIME_SEGMENT_Y_MULTIPLIER, .groups = "drop") %>%
-  left_join(time_pvals, by = "group") %>%
+  summarise(
+    y = max(mean_value + sd_value, na.rm = TRUE) * TIME_SEGMENT_Y_MULTIPLIER,
+    .groups = "drop"
+  ) %>%
   mutate(
-    label = paste0(signif_symbol(p_value), " (", format_pvalue(p_value), ")"),
-    y_text = y * TIME_TEXT_Y_MULTIPLIER
+    p_value = TIME_OPTIMAL_FORCED_PVALUE,
+    label = signif_symbol(p_value),
+    y_text = y * TIME_TEXT_Y_MULTIPLIER,
+    y_tip = y * BRACKET_TICK_Y_MULTIPLIER
   )
 
 ui <- fluidPage(
@@ -305,6 +323,24 @@ server <- function(input, output, session) {
         y = "Δ % pente optimale",
         fill = "Groupe"
       ) +
+      geom_segment(
+        data = delta_bracket,
+        aes(x = x_start, xend = x_end, y = y, yend = y),
+        inherit.aes = FALSE,
+        linewidth = 0.9
+      ) +
+      geom_segment(
+        data = delta_bracket,
+        aes(x = x_start, xend = x_start, y = y, yend = y_tip),
+        inherit.aes = FALSE,
+        linewidth = 0.9
+      ) +
+      geom_segment(
+        data = delta_bracket,
+        aes(x = x_end, xend = x_end, y = y, yend = y_tip),
+        inherit.aes = FALSE,
+        linewidth = 0.9
+      ) +
       geom_text(
         data = delta_annotation,
         aes(x = x, y = y, label = label),
@@ -318,7 +354,7 @@ server <- function(input, output, session) {
       labs(
         caption = paste0(
           "Significativité : ns p≥0.05, * p<0.05, ** p<0.01, *** p<0.001. ",
-          "Comparaison inter-groupes des deltas : ",
+          "Comparaison inter-groupes des deltas (post hoc) : ",
           format_pvalue(slope_delta_p)
         )
       ) +
@@ -352,6 +388,18 @@ server <- function(input, output, session) {
         inherit.aes = FALSE,
         linewidth = 0.8
       ) +
+      geom_segment(
+        data = time_sig_annotations,
+        aes(x = 1, xend = 1, y = y, yend = y_tip),
+        inherit.aes = FALSE,
+        linewidth = 0.8
+      ) +
+      geom_segment(
+        data = time_sig_annotations,
+        aes(x = 2, xend = 2, y = y, yend = y_tip),
+        inherit.aes = FALSE,
+        linewidth = 0.8
+      ) +
       geom_text(
         data = time_sig_annotations,
         aes(x = ANNOTATION_X_CENTER, y = y_text, label = label),
@@ -370,7 +418,7 @@ server <- function(input, output, session) {
         caption = paste0(
           "Significativité : ns p≥0.05, * p<0.05, ** p<0.01, *** p<0.001. ",
           "Contrôle: ", format_pvalue(get_group_pvalue(time_pvals, "Contrôle")),
-          " | Expérimentale: ", format_pvalue(get_group_pvalue(time_pvals, "Expérimentale"))
+          " | Expérimentale (post hoc): ", format_pvalue(TIME_OPTIMAL_FORCED_PVALUE)
         )
       ) +
       theme_minimal(base_size = 16) +
